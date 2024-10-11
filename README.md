@@ -106,13 +106,13 @@ $client->initRoute();
 Le 4ieme paramètreest le text qui apparaitra sur les relevé bancaire des deux parties
 ```php
 <?php 
-    $client->refundCapture('9PB5085723210951B', 5, 'EUR', 'remboursement test');
+    $client->refundCapture('xxxxxx', 5, 'EUR', 'remboursement test');
 ```
 
 ### Faire une nouveau paiement a partir d'un paypal_vault_id
 ```php
 <?php 
-    if($client->createOrderFromToken('5em45740c0241244f', 100, 'EUR') === false){
+    if($client->createOrderFromToken('xxxxx', 100, 'EUR') === false){
         throw new EXception('Echec de creation de la commande a partir du paypal_vault_id');
     }
 ```
