@@ -25,7 +25,7 @@ abstract class Paypal
     private $table_name_paypal_transaction;
     private $table_name_paypal_transaction_logs;
 
-    public function __construct($clientID, $secretID, $api, $currency, $urlJsSdk, $url_back, $active_ssl = true, table_name_paypal_transaction = 'paypal_transactions', table_name_paypal_transaction_logs = 'paypal_transactions_logs') {
+    public function __construct($clientID, $secretID, $api, $currency, $urlJsSdk, $url_back, $active_ssl = true, $table_name_paypal_transaction = 'paypal_transactions', $table_name_paypal_transaction_logs = 'paypal_transactions_logs') {
         $this->clientID = $clientID;
         $this->secretID = $secretID;
         $this->api = $api;
