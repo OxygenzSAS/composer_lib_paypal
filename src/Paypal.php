@@ -21,8 +21,11 @@ abstract class Paypal
      * @var mixed
      */
     private $currency;
+    
+    private $table_name_paypal_transaction;
+    private $table_name_paypal_transaction_logs;
 
-    public function __construct($clientID, $secretID, $api, $currency, $urlJsSdk, $url_back, $active_ssl = true) {
+    public function __construct($clientID, $secretID, $api, $currency, $urlJsSdk, $url_back, $active_ssl = true, table_name_paypal_transaction = 'paypal_transactions', table_name_paypal_transaction_logs = 'paypal_transactions_logs') {
         $this->clientID = $clientID;
         $this->secretID = $secretID;
         $this->api = $api;
@@ -30,6 +33,8 @@ abstract class Paypal
         $this->url_back = $url_back;
         $this->urlJsSdk = $urlJsSdk;
         $this->currency= $currency;
+        $this->table_name_paypal_transaction = $table_name_paypal_transaction;
+        $this->table_name_paypal_transaction_logs = $table_name_paypal_transaction_logs;
     }
 
     // Crée une commande et renvoie la réponse en JSON.
@@ -94,7 +99,7 @@ abstract class Paypal
             $json = json_decode($response, true);
 
             Database::getInstance()->query(/** @lang SQL */'
-                INSERT INTO paypal_transactions (type, paypal_order_id, status, amount, currency) 
+                INSERT INTO '.$this->table_name_paypal_transaction.' (type, paypal_order_id, status, amount, currency) 
                 VALUES (\'payment\', :paypal_order_id, :status, :amount, :currency)
             ', [
                 ':paypal_order_id' =>  $json['id'],
@@ -161,7 +166,7 @@ abstract class Paypal
             $json = json_decode($response, true);
 
             Database::getInstance()->query(/** @lang SQL */'
-                INSERT INTO paypal_transactions  (type, paypal_capture_id,status,amount,net_amount,paypal_fee,currency,paypal_customer_id,paypal_account_id,paypal_vault_id,update_time,paypal_order_id)
+                INSERT INTO '.$this->table_name_paypal_transaction.' (type, paypal_capture_id,status,amount,net_amount,paypal_fee,currency,paypal_customer_id,paypal_account_id,paypal_vault_id,update_time,paypal_order_id)
                 VALUES(\'payment\', :paypal_capture_id,:status,:amount,:net_amount,:paypal_fee,:currency,:paypal_customer_id,:paypal_account_id,:paypal_vault_id,:update_time,:paypal_order_id)
             ', [
                 ':paypal_order_id' =>  $json['id'],
@@ -220,7 +225,7 @@ abstract class Paypal
             $json = json_decode($response, true);
 
             Database::getInstance()->query(/** @lang SQL */'
-                UPDATE paypal_transactions  SET status = :status
+                UPDATE '.$this->table_name_paypal_transaction.' SET status = :status
                                 , amount = :amount
                                 , net_amount = :net_amount
                                 , paypal_fee = :paypal_fee
@@ -247,7 +252,7 @@ abstract class Paypal
 
             // Requête SELECT pour récupérer la ligne mise à jour
             $updated_transaction = Database::getInstance()->query(/** @lang SQL */'
-                SELECT id_paypal_transaction FROM paypal_transactions  WHERE paypal_order_id = :order_id
+                SELECT id_paypal_transaction FROM '.$this->table_name_paypal_transaction.'  WHERE paypal_order_id = :order_id
             ', [
                 ':order_id' => $order_id,
             ])->fetch(\PDO::FETCH_ASSOC);
@@ -305,7 +310,7 @@ abstract class Paypal
             $json = json_decode($response, true);
 
             Database::getInstance()->query(/** @lang SQL */'
-                INSERT INTO paypal_transactions  (type,paypal_capture_id,paypal_refund_id,status,amount,currency, comment)
+                INSERT INTO '.$this->table_name_paypal_transaction.'  (type,paypal_capture_id,paypal_refund_id,status,amount,currency, comment)
                 VALUES(\'refund\', :paypal_capture_id,:paypal_refund_id,:status,:amount,:currency, :comment)
             ', [
                 ':paypal_capture_id' => $capture_id,
@@ -361,7 +366,7 @@ abstract class Paypal
     public function generateDynamicOrdersTable() {
 
         // Requête pour récupérer toutes les données de la table `orders`
-        $stmt = Database::getInstance()->query(/** @lang SQL */'SELECT * FROM paypal_transactions ');
+        $stmt = Database::getInstance()->query(/** @lang SQL */'SELECT * FROM '.$this->table_name_paypal_transaction.' ');
 
         // Récupérer le nombre de colonnes et les informations des colonnes dynamiquement
         $columnCount = $stmt->columnCount();
@@ -404,7 +409,7 @@ abstract class Paypal
 
         /** Init de la BDD */
         $db = Database::getInstance();
-        $db->query(/** @lang SQL */'CREATE TABLE IF NOT EXISTS  paypal_transactions  (
+        $db->query(/** @lang SQL */'CREATE TABLE IF NOT EXISTS  '.$this->table_name_paypal_transaction.'  (
             id_paypal_transaction '.$db->getAutoIncrementSyntax().',
             type VARCHAR(20) NOT NULL,
             paypal_order_id varchar(20),
@@ -424,7 +429,7 @@ abstract class Paypal
             CHECK (type IN (\'payment\', \'refund\'))
         );');
 
-        $db->query(/** @lang SQL */'CREATE TABLE IF NOT EXISTS  paypal_transactions_logs  (
+        $db->query(/** @lang SQL */'CREATE TABLE IF NOT EXISTS  '.$this->table_name_paypal_transaction_logs.'  (
             id_paypal_transaction_log '.$db->getAutoIncrementSyntax().',
             id_paypal_transaction int,
             data text,
@@ -435,7 +440,7 @@ abstract class Paypal
 
     public function addLog($response, $id_paypal_transaction) {
         Database::getInstance()->query(
-            /** @lang SQL */'INSERT INTO paypal_transactions_logs (data, id_paypal_transaction) VALUES(:data,:id_paypal_transaction) '
+            /** @lang SQL */'INSERT INTO '.$this->table_name_paypal_transaction_logs.' (data, id_paypal_transaction) VALUES(:data,:id_paypal_transaction) '
             , [
                 ':data' => $response,
                 ':id_paypal_transaction' =>  $id_paypal_transaction
