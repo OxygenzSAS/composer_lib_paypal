@@ -481,7 +481,8 @@ abstract class Paypal
         switch($_POST['action'] ?? null) {
             case 'create_order':
                 $amount = $this->getAmountFromAttribute($_POST['attributes']);
-                call_user_func_array(array($this, 'createOrder'), [$amount, $this->currency]);
+                $adress_facturation =  $this->getAdressFromAttribute($_POST['attributes']);
+                call_user_func_array(array($this, 'createOrder'), [$amount, $this->currency, $adress_facturation['name'], $adress_facturation['adress_line_1'], $adress_facturation['adress_line_2'], $adress_facturation['admin_area_2'], $adress_facturation['admin_area_1'], $adress_facturation['postal_code'], $adress_facturation['country_code'] ]);
                 die();
                 /*
             case 'createOrderFromToken':
@@ -546,4 +547,7 @@ abstract class Paypal
 
     /** doit retourner un montant */
     abstract protected function getAmountFromAttribute(string $attribute) :int ;
+
+    /** doit retourner un tableau contenant l'adresse de facturation */
+    abstract protected function getAdressFromAttribute(string $attribute) :array ;
 }
