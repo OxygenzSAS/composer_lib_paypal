@@ -13,7 +13,7 @@ class PaypalCustom {
     init = function () {
         let instance = this;
         // Charger le SDK PayPal
-        instance.url_to_head(instance.paypal_sdk_url + "?client-id=" + instance.client_id + "&currency=" + instance.currency + "&intent=capture&commit=true")
+        instance.url_to_head(instance.paypal_sdk_url)
             .then(() => {
                 instance.afterInitSDK();
             })
@@ -22,61 +22,131 @@ class PaypalCustom {
             });
     }
 
-    afterInitSDK() {
+    async afterInitSDK() {
         let instance = this;
 
-        let paypal_buttons = paypal.Buttons({
-            onClick: (data) => {
-                // Custom JS
-            },
-            style: instance.buttonStyle, // Utiliser le style dynamique passé au constructeur
+        try {
+            const clientToken = await getBrowserSafeClientToken();
 
-            createOrder: function (data, actions) {
-                return fetch(instance.url_paiement, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: new URLSearchParams({action: 'create_order', attributes: JSON.stringify(instance.attributes) }).toString()
-                })
-                    .then((response) => response.json())
-                    .then((order) => {
-                        instance.triggerEvent('paypalOrderCreated', { order });
-                        return order.id;
-                    })
-                    .catch((error) => {
-                        instance.triggerEvent('paypalError', { message: error });
+            const sdkInstance = await window.paypal.createInstance({
+                clientToken,
+                components: ["paypal-payments"],
+                pageType: "checkout",
+            });
+            console.log("PayPal SDK initialized successfully");
+
+            setupPayPalButton(sdkInstance);
+
+        } catch (error) {
+            console.error(error);
+        }
+
+        async function setupPayPalButton(sdkInstance) {
+
+
+            const paymentSessionOptions = {
+                async onApprove(data) {
+                    console.log("onApprove", data);
+                    const orderData = await captureOrder({
+                        orderId: data.orderId,
                     });
-            },
-
-            onApprove: function (data, actions) {
-                let order_id = data.orderID;
-                return fetch(instance.url_paiement, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: new URLSearchParams({action: 'complete_order', order_id: order_id}).toString()
-                })
-                    .then((response) => response.json())
-                    .then((order_details) => {
-                        let intent_object = "captures";
-                        instance.triggerEvent('paypalOrderCompleted', {
-                            amount: order_details,
-                        });
-                        paypal_buttons.close();
-                    })
-                    .catch((error) => {
-                        instance.triggerEvent('paypalError', { message: error });
+                    renderAlert({
+                        type: "success",
+                        message: `Order successfully captured! ${JSON.stringify(data)}`,
                     });
-            },
+                    console.log("Capture result", orderData);
+                },
+                onCancel(data) {
+                    renderAlert({ type: "warning", message: "onCancel() callback called" });
+                    console.log("onCancel", data);
+                },
+                onError(error) {
+                    renderAlert({
+                        type: "danger",
+                        message: `onError() callback called: ${error}`,
+                    });
+                    console.log("onError", error);
+                },
+            };
 
-            onCancel: function (data) {
-                instance.triggerEvent('paypalOrderCancelled', data);
-            },
+            const paypalPaymentSession = sdkInstance.createPayPalOneTimePaymentSession(
+                paymentSessionOptions,
+            );
 
-            onError: function (err) {
-                instance.triggerEvent('paypalError', { message: err });
+            const paypalButton = document.querySelector("#paypal-button");
+            paypalButton.removeAttribute("hidden");
+
+            paypalButton.addEventListener("click", async () => {
+                try {
+                    // get the promise reference by invoking createOrder()
+                    // do not await this async function since it can cause transient activation issues
+                    const createOrderPromise = createOrder();
+                    await paypalPaymentSession.start(
+                        { presentationMode: "modal" },
+                        createOrderPromise,
+                    );
+                } catch (error) {
+                    console.error(error);
+                }
+            });
+        }
+
+        async function getBrowserSafeClientToken() {
+            const response = await fetch(instance.url_paiement, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({action: 'get_token'}).toString()
+            });
+            const { accessToken } = await response.json();
+
+            return accessToken;
+        }
+
+        async function createOrder() {
+            const response = await fetch(instance.url_paiement, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({action: 'create_order', attributes: JSON.stringify(instance.attributes) }).toString()
+            });
+
+            const { id } = await response.json();
+            renderAlert({ type: "info", message: `Order successfully created: ${id}` });
+
+            return { orderId: id };
+        }
+
+        async function captureOrder({ orderId }) {
+            const response = await fetch(instance.url_paiement, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({action: 'complete_order', order_id: orderId }).toString()
+            });
+            const data = await response.json();
+
+            return data;
+        }
+
+        function renderAlert({ type, message }) {
+            const alertContainer = document.querySelector(".alert-container");
+            if (!alertContainer) {
+                return;
             }
-        });
 
-        paypal_buttons.render(instance.boutonContainerSelector); // Utiliser le sélecteur dynamique
+            // remove existing alert
+            const existingAlertComponent =
+                alertContainer.querySelector("alert-component");
+            existingAlertComponent?.remove();
+
+            const alertComponent = document.createElement("alert-component");
+            alertComponent.setAttribute("type", type);
+
+            const alertMessageSlot = document.createElement("span");
+            alertMessageSlot.setAttribute("slot", "alert-message");
+            alertMessageSlot.innerText = message;
+
+            alertComponent.append(alertMessageSlot);
+            alertContainer.append(alertComponent);
+        }
 
         // Déclenchement de l'événement après l'initialisation des boutons
         instance.triggerEvent('paypalButtonsInitialized');

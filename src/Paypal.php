@@ -41,7 +41,7 @@ abstract class Paypal
     public function createOrder($amount, $devise)
     {
         try {
-            $accessToken = $this->getAccessToken();
+            $accessToken = $this->getAccessToken()['accessToken'];
 
             $orderData = [
                 'intent' => 'CAPTURE',
@@ -123,7 +123,7 @@ abstract class Paypal
     public function createOrderFromToken($paypal_vault_id, $amount, $devise, $paypal_customer_id = null)
     {
         try {
-            $accessToken = $this->getAccessToken();
+            $accessToken = $this->getAccessToken()['accessToken'];
 
             $orderData = [
                 'intent' => 'CAPTURE',
@@ -179,7 +179,7 @@ abstract class Paypal
                 ':amount' => $json['purchase_units'][0]['payments']['captures'][0]['amount']['value'],
                 ':net_amount' => $json['purchase_units'][0]['payments']['captures'][0]['seller_receivable_breakdown']['net_amount']['value'],
                 ':paypal_fee' => $json['purchase_units'][0]['payments']['captures'][0]['seller_receivable_breakdown']['paypal_fee']['value'],
-                ':update_time' => $json['purchase_units'][0]['payments']['captures'][0]['update_time']
+                ':update_time' => $this->convertPayPalDateToMySQL($json['purchase_units'][0]['payments']['captures'][0]['update_time'])
             ]);
             $id_paypal_transaction = Database::getInstance()->getLastInsertId();
             $this->addLog($response, $id_paypal_transaction);
@@ -195,7 +195,7 @@ abstract class Paypal
 
     public function completeOrder($order_id) {
         try {
-            $accessToken = $this->getAccessToken();
+            $accessToken = $this->getAccessToken()['accessToken'];
             $orderId = $order_id;
             $intent = strtolower('CAPTURE'); // Par exemple 'capture' ou 'CAPTURE'
 
@@ -247,7 +247,7 @@ abstract class Paypal
                 ':amount' => $json['purchase_units'][0]['payments']['captures'][0]['amount']['value'],
                 ':net_amount' => $json['purchase_units'][0]['payments']['captures'][0]['seller_receivable_breakdown']['net_amount']['value'],
                 ':paypal_fee' => $json['purchase_units'][0]['payments']['captures'][0]['seller_receivable_breakdown']['paypal_fee']['value'],
-                ':update_time' => $json['purchase_units'][0]['payments']['captures'][0]['update_time']
+                ':update_time' => $this->convertPayPalDateToMySQL($json['purchase_units'][0]['payments']['captures'][0]['update_time'])
             ]);
 
             // Requête SELECT pour récupérer la ligne mise à jour
@@ -269,7 +269,7 @@ abstract class Paypal
 
     public function refundCapture($capture_id, $amount, $currency, $note_to_payer = 'refund' ) {
         try {
-            $accessToken = $this->getAccessToken();
+            $accessToken = $this->getAccessToken()['accessToken'];
 
             $orderData = [
                 'note_to_payer' => $note_to_payer,
@@ -331,7 +331,14 @@ abstract class Paypal
         }
     }
 
-    protected function getAccessToken() {
+    public function getTokenClientSafeBrowser() {
+        $token = $this->getAccessToken(true);
+        header('Content-Type: application/json');
+        echo json_encode($token);
+        die();
+    }
+
+    protected function getAccessToken($is_safe_browser = false) {
         $ch = curl_init();
 
         curl_setopt($ch, CURLOPT_URL, $this->api.'/v1/oauth2/token'); // Sandbox, remplacez par l'URL live si nécessaire
@@ -342,7 +349,14 @@ abstract class Paypal
             'Accept: application/json',
             'Accept-Language: en_US'
         ]);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, "grant_type=client_credentials"); // Paramètre pour obtenir un token
+
+        $postfields = ['grant_type'    => 'client_credentials'];// Paramètre pour obtenir un token
+        if($is_safe_browser === true) {
+            $postfields['response_type'] = "client_token"; // token pour browser
+        }
+
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postfields));
+
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $this->active_ssl);
 
         $response = curl_exec($ch);
@@ -360,7 +374,12 @@ abstract class Paypal
             throw new \Exception("Token d'accès non trouvé dans la réponse : " . $response);
         }
 
-        return $jsonResponse['access_token']; // Renvoie le jeton d'accès
+        return [
+            'accessToken' => $jsonResponse['access_token'],
+            'expiresIn'   => $jsonResponse['expires_in']
+        ];
+
+//        return $jsonResponse['access_token']; // Renvoie le jeton d'accès
     }
 
     public function generateDynamicOrdersTable() {
@@ -402,6 +421,17 @@ abstract class Paypal
 
         // Retourner le tableau HTML
         return $html;
+    }
+
+    // Fonction pour convertir le format ISO 8601 de PayPal en format MySQL
+    public function convertPayPalDateToMySQL($paypalDate) {
+        if (empty($paypalDate)) {
+            return null;
+        }
+
+        // Convertir "2026-01-05T15:47:54Z" en "2026-01-05 15:47:54"
+        $timestamp = strtotime($paypalDate);
+        return date('Y-m-d H:i:s', $timestamp);
     }
 
     public function initDatabase()
@@ -468,6 +498,9 @@ abstract class Paypal
     {
         /** Simulation des routes */
         switch($_POST['action'] ?? null) {
+            case 'get_token':
+                call_user_func_array(array($this, 'getTokenClientSafeBrowser'), []);
+                die();
             case 'create_order':
                 $amount = $this->getAmountFromAttribute($_POST['attributes']);
                 call_user_func_array(array($this, 'createOrder'), [$amount, $this->currency]);

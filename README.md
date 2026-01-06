@@ -21,7 +21,7 @@ $client = new class(
     ,'xxxxxxxxxxxxx' /* SecretID */
     , 'https://api-m.sandbox.paypal.com' /* url API sandox vs prod */
     , 'EUR' /* devise */
-    , 'https://sandbox.paypal.com/sdk/js' /* url sdk js */
+    , 'https://www.sandbox.paypal.com/web-sdk/v6/core' /* url sdk js v6 */
     ,'http://localhost:8080' /* url de la page unique de paiement */
     , true /* active SSL */
 ) extends \OxygenzSAS\Paypal\Paypal {
@@ -58,7 +58,19 @@ $client->initRoute();
     <script src="/vendor/oxygenzsas/composer_lib_paypal/js/script.js"></script> <!-- @todo utiliser le script js depuis les sources composer -->
 </head>
 <body>
-<div id="payment_options"></div>
+
+<div class="buttons-container">
+    <paypal-button id="paypal-button" type="pay" hidden></paypal-button>
+    <paypal-pay-later-button
+            id="paylater-button"
+            hidden
+    ></paypal-pay-later-button>
+    <paypal-credit-button
+            id="paypal-credit-button"
+            hidden
+    ></paypal-credit-button>
+</div>
+<div class="alert-container"></div>
 
 <script type="text/javascript">
     new PaypalCustom( {
@@ -75,27 +87,6 @@ $client->initRoute();
             ,label: 'paypal'
         }
     });
-
-    document.addEventListener('paypalOrderCreated', (event) => {
-        console.log('Order created:', event.detail.order);
-    });
-
-    document.addEventListener('paypalOrderCompleted', (event) => {
-        console.log(`Thank you for your payment of ${event.detail.amount.value} ${event.detail.amount.currency_code}`);
-    });
-
-    document.addEventListener('paypalOrderCancelled', (event) => {
-        console.log('Order cancelled!');
-    });
-
-    document.addEventListener('paypalError', (event) => {
-        console.error('PayPal Error:', event.detail.message);
-    });
-
-    document.addEventListener('paypalButtonsInitialized', () => {
-        console.log('PayPal buttons have been initialized and are ready for interaction.');
-    });
-
 </script>
 
 </body>
