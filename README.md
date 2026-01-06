@@ -1,5 +1,5 @@
 # Paypal librairie
-Une librairie paypal pour une integration rapide des paiements en utilisant le "Standard Checkout"
+Une librairie paypal pour une integration rapide des paiements en utilisant les CardFields du SDK javascript v5 de paypal
 
 ## Installation
 
@@ -58,7 +58,15 @@ $client->initRoute();
     <script src="/vendor/oxygenzsas/composer_lib_paypal/js/script.js"></script> <!-- @todo utiliser le script js depuis les sources composer -->
 </head>
 <body>
-<div id="payment_options"></div>
+
+<div id="paypal-card-form">
+    <div id="card-name"></div>
+    <div id="card-number"></div>
+    <div id="card-expiry"></div>
+    <div id="card-cvv"></div>
+
+    <button id="card-submit">Payer</button>
+</div>
 
 <script type="text/javascript">
     new PaypalCustom( {
